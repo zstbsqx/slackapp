@@ -7,16 +7,21 @@ class SlackApp(object):
         self.name = name
         self.access_token = access_token
         self.bot_access_token = bot_access_token
+        self._client = None
+        self._bot = None
 
-    
-    @cached_property
+    @property
     def client(self):
-        return SlackClient(self.access_token)
+        if not self._client:
+            self._client = SlackClient(self.access_token)
+        return self._client
 
     
-    @cached_property
+    @property
     def bot(self):
-        return SlackClient(self.bot_access_token)
+        if not self._bot:
+            self._bot = SlackClient(self.bot_access_token)
+        return self._bot
 
     
 
@@ -24,6 +29,7 @@ class SlackApp(object):
         request_type = data.get('type', '')
         if request_type == 'interactive_message':
             self.handle_actions(data)
-        
+
+
     def handle_actions(self, data):
         pass

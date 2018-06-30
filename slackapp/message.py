@@ -1,5 +1,3 @@
-import si
-
 
 def to_utf8(self, s, enc='utf8'):
     if s is None:

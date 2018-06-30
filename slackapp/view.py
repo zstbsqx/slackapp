@@ -1,6 +1,5 @@
 
-from .message import Message
-from .message import MessageText, MessageAttachment
+from slackapp.message import MessageText, MessageAttachment
 import json
 
 class MessageView(object):
