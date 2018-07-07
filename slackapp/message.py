@@ -1,4 +1,6 @@
 
+from slackapp.action import MessageButton, MessageMenu, MessageUserMenu, MessageChannelMenu
+
 def to_utf8(self, s, enc='utf8'):
     if s is None:
         return None
@@ -101,8 +103,19 @@ class MessageAttachment(object):
         fields_list = self._dict.setdefault('fields', [])
         fields_list.append(dict(title=title, value=value, short=short))
 
-    def actions(self, action):
-        pass
+    @property
+    def actions(self):
+        return self._actions
+
+    def button(self, name, text):
+        btn = MessageButton(name, text)
+        self._actions.append(btn)
+        return btn
+    
+    def menu(self):
+        act_menu = MessageMenu()
+        self._actions.append(act_menu)
+        return act_menu
     
     def render(self):
         r = dict(self._dict)

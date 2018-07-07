@@ -2,6 +2,8 @@
 from slackapp.message import MessageText, MessageAttachment
 import json
 
+
+
 class MessageView(object):
     __callback_id = ''
 
