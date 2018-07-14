@@ -3,17 +3,17 @@ from slackapp.message import MessageText, MessageAttachment
 import json
 
 
-
 class MessageView(object):
-    __callback_id = ''
+    __callback_prefix__ = ''
 
     def __init__(self):
         self._text = None
         self._attachments = []
+        self.context = None
 
     @classmethod
     def register(cls, app):
-        app.register(cls.__callback_id, cls)
+        app.register(cls.__callback_prefix__, cls)
 
     def init(self):
         self.on_init(self)
@@ -25,8 +25,8 @@ class MessageView(object):
         self._text = MessageText(text=text)
         return self._text
 
-    def attachement(self, ):
-        attachment = MessageAttachment()
+    def attachement(self, name):
+        attachment = MessageAttachment('{}____{}'.format(self.__callback_prefix__, name))
         self._attachments.append(attachment)
         return attachment
 
@@ -39,8 +39,9 @@ class MessageView(object):
         return r
     
     @classmethod
-    def load(cls, data):
+    def load(cls, context, data):
         o = cls()
+        o.context = context
         if 'text' in data:
             _text = MessageText.load(data['text'])
             o._text = _text
@@ -50,6 +51,11 @@ class MessageView(object):
             o._attachments = _attachments
         
         return o
+
+    def handle_action(self, action):
+        action_type = action['type']
+        action_name = action['name']
+
 
     def handle_event(self, event):
         pass

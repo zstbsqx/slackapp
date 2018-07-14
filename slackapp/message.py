@@ -1,15 +1,42 @@
 
-from slackapp.action import MessageButton, MessageMenu, MessageUserMenu, MessageChannelMenu
+from slackapp.event import EventHandler
+from collections import namedtuple
 
-def to_utf8(self, s, enc='utf8'):
+def to_utf8(s, enc='utf8'):
     if s is None:
         return None
     return s.encode(enc) if isinstance(s, unicode) else str(s)
 
 def slack_escape(text):
-    text = self.to_utf8(text)
+    #text = to_utf8(text)
     return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
+SlackTeam = namedtuple('SlackTeam', ['id', 'domain'])
+SlackChannel = namedtuple('SlackChannel', ['id', 'name'])
+SlackUser = namedtuple('SlackUser', ['id', 'name'])
+
+
+class MessageContext(object):
+    def __init__(self, name):
+        self.name = name
+        self.bot = None
+        self.client = None
+        self.team = None
+        self.channel = None
+        self.user = None
+    
+    @classmethod
+    def load(cls, data, bot=None, client=None):
+        o = cls()
+        o.bot = bot
+        o.client = client
+        team = data['team']
+        o.team = SlackTeam(id=team['id'], domain=team['domain'])
+        channel = data['channel']
+        o.channel = SlackChannel(id=channel['id'], name=channel['name'])
+        user = data['user']
+        o.user = SlackUser(id=user['id'], name=user['name'])
+        return o
 
 class MessageText(object):
     def __init__(self, text=''):
@@ -54,21 +81,26 @@ class MessageText(object):
         escaped = slack_escape(text)        
         self._texts.append('`{}`'.format(escaped))
     
-    def italic(self, text)
+    def italic(self, text):
         escaped = slack_escape(text)        
         self._texts.append('_{}_'.format(escaped))
 
-    def bold(self, text)
+    def bold(self, text):
         escaped = slack_escape(text)        
         self._texts.append('*{}*'.format(escaped))
 
-    def strike(self, text)
+    def strike(self, text):
         escaped = slack_escape(text)        
         self._texts.append('~{}~'.format(escaped))
 
 
     def newline(self):
         self._texts.append('\n')
+
+    @classmethod
+    def load(cls, text):
+        o = cls(text)
+        return o
 
     def render(self):
         text = ''.join(self._texts)
@@ -77,15 +109,16 @@ class MessageText(object):
 
 
 class MessageAttachment(object):
-    def __init__(self):
+    def __init__(self, callback_id):
         self._dict = {}
         self._actions = []
+        self.callback_id = callback_id
 
     def fallback(self, text):
         pass
     
     def title(self, title):
-        self._dict['title'] = slack_escape(text)
+        self._dict['title'] = slack_escape(title)
     
     def title_link(self, title_link):
         self._dict['title_link'] = title_link
@@ -116,9 +149,93 @@ class MessageAttachment(object):
         act_menu = MessageMenu()
         self._actions.append(act_menu)
         return act_menu
-    
+
+    @classmethod
+    def load(cls, data):
+        callback_id = data['callback_id']
+        o = cls(callback_id)
+        for key in ('title', 'title_link', 'text', 'color', 'image_ur', 'fields'):
+            if key in data:
+                o._dict[key] = data[key]
+        if 'actions' in data:
+            for action in data['actions']:
+                action_type = action['type']
+                if action_type == 'button':
+                    o._actions.append(MessageButton.load(action))
+                elif action_type == 'select':
+                    pass
+        return o
+
+
     def render(self):
         r = dict(self._dict)
         if self._actions:
-            r['actions'] = self._actions
+            r['actions'] = list(map(lambda x: x.render(), self._actions))
+        r['callback_id'] = self.callback_id
         return r
+
+
+class MessageButton(object):
+    def __init__(self, name, text):
+        self.name = name
+        self.text = text
+        self.type = 'button'
+        self._style = 'default'
+        self._value = ''
+        self._confirm = {}
+        self._click_handler = EventHandler(self)
+
+    
+    def style(self, style):
+        self._style = style
+
+    def value(self, value):
+        self._value = value
+
+    def on_click(self, click_handler):
+        self._click_handler.add(click_handler)
+
+    def confirm(self, title, text, ok_text='', dismiss_text=''):
+        confirm_dict = dict(title=title, text=text)
+        if ok_text:
+            confirm_dict['ok_text'] = ok_text
+        if dismiss_text:
+            confirm_dict['dismiss_text'] = dismiss_text
+        self._confirm = confirm_dict
+
+    @classmethod
+    def load(cls, data):
+        o = cls()
+        for key in ('name', 'text', 'type'):
+            if key in data:
+                setattr(o, key, data[key])
+        for key in ('style', 'value', 'confirm'):
+            if key in data:
+                setattr(o, '_{}'.format(key), data[key])
+        return o
+
+        
+    def render(self):
+        rst = dict(name= self.name,
+            text = self.text,
+            type = self.type,
+            style = self._style
+        )
+        if self._value:
+            rst['value'] = self._value
+
+        if self._confirm:
+            rst['confirm'] = self._confirm
+        return rst
+
+
+class MessageMenu(object):
+    pass
+
+
+class MessageChannelMenu(MessageMenu):
+    pass
+
+
+class MessageUserMenu(MessageMenu):
+    pass
