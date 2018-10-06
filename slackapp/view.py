@@ -8,12 +8,9 @@ class MessageView(object):
 
     def __init__(self):
         self._text = None
-        self._attachments = []
+        self._attachments =  []
         self.context = None
-
-    @classmethod
-    def register(cls, app):
-        app.register(cls.__callback_prefix__, cls)
+        self.app = None
 
     def init(self):
         self.on_init(self)

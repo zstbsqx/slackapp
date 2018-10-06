@@ -1,8 +1,6 @@
 
 
 from flask import Flask
-from flask import request
-from flask import jsonify
 import json
 
 app = Flask(__name__)
@@ -10,6 +8,22 @@ app = Flask(__name__)
 
 from slackapp.view import MessageView
 from slackapp import SlackApp
+class WhatisthisView(MessageView):
+    __callback_prefix__ = 'whatisit'
+    def init(self):
+        self.text('what is it view')
+        a = self.attachement('foo')
+        a.title('What is it?')
+        a.button('book', 'it is a book.')
+        a.button('pencil', 'it is a pencil.')
+    
+    def on_book_clicked(self):
+        self.reset()
+        self.text("Yes, it's a book")
+    
+    def on_pencil_clicked(self):
+        self.reset()
+        self.text("Yes, it's a pencil.")
 
 class HelloView(MessageView):
     __callback_prefix__ = 'hello'
@@ -22,7 +36,10 @@ class HelloView(MessageView):
     
     def on_fine_clicked(self):
         self.reset()
-        self.text("I'm fine, too.")
+        self.text("I'm fine, too.")        
+        w = WhatisthisView()
+        w.init()
+        return w
     
     def on_bad_clicked(self):
         self.reset()
@@ -33,23 +50,15 @@ class HelloApp(SlackApp):
     def on_slack_app_mention(self):
         return ''
     
-    def on_slack_message(self):
-        return ''
+    def on_slack_message(self, message):
+        user = message.get('user')
+        if user:
+            hello_app.send_view(HelloView, user)
 
 hello_app = HelloApp('hello')
-HelloView.register(hello_app)
-
-@app.route('/slackapp/hello', methods=['GET', 'POST'])
-def hello():
-    data = json.loads(request.values.get('payload'))
-    ret = hello_app.handle_request(data)
-    return jsonify(**ret)
-
-@app.route('/slackapp/hello/event', methods=['GET', 'POST'])
-def hello_event():
-    data = request.get_json(force=True)
-    ret = hello_app.handle_slack_event(data)
-    return jsonify(**ret)
+hello_app.register_view(WhatisthisView)
+hello_app.register_view(HelloView)
+hello_app.init_flaskapp(app, '/slackapp/hello')
 
 if __name__ == '__main__':
     import configparser
@@ -57,6 +66,5 @@ if __name__ == '__main__':
     config.read('config.ini')
     conf = dict(config.items('hello'))
     hello_app.setup_config(**conf)
-    hello_app.send_view(HelloView, conf.get('user_id', ''))
     app.run()
     

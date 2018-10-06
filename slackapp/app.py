@@ -2,6 +2,7 @@
 from slackclient import SlackClient
 from slackapp.view import MessageView
 from slackapp.message import MessageContext, MessageText
+from slackapp.slack import SlackBot
 
 
 class SlackApp(object):
@@ -31,7 +32,8 @@ class SlackApp(object):
     @property
     def bot(self):
         if not self._bot:
-            self._bot = SlackClient(self.config['bot_access_token'])
+            self._bot = SlackBot(self.config['bot_access_token'])
+            self._bot.info()
         return self._bot
 
     
@@ -48,23 +50,21 @@ class SlackApp(object):
             pass
         return MessageText('No right handler or not return valid response').response()
     
-    def register(self, view_id, view_cls):
+    def register_view(self, view_cls, view_id=None):
         if not issubclass(view_cls, MessageView):
             raise Exception('view_cls must be inherited from MessageView')
+        view_id = view_id or view_cls.__callback_prefix__
         if view_id not in self._views:
             self._views[view_id] = view_cls
         else:
             raise Exception('view_id {} exits'.format(view_id))
 
+
     def send_view(self, view_class, slack_user_id):
         view_instance = view_class()
         view_instance.init()
-        self.bot.api_call(
-                "chat.postMessage",
-                channel=slack_user_id,
-                as_user = True,
-                **view_instance.render()
-                )
+        self.bot.post_message(slack_user_id,
+                view_instance.render())
 
 
     def handle_actions(self, data):
@@ -91,17 +91,26 @@ class SlackApp(object):
             challenge = data.get('challenge', '')
             return dict(challenge=challenge)
         elif event_type == 'event_callback':
-            sub_event_type = data.get('event', {}).get('type', '')
+            event = data.get('event', {})
+            sub_event_type = event.get('type', '')
             if sub_event_type == 'app_mention':
-                return self.on_app_mention()
-            else:
-                event_handler = getattr(self, 'on_slack_{}'.format(sub_event_type), None)
-                if callable(event_handler):
-                    return event_handler() or dict()
-                return dict(text="No event handler")
+                return self.on_slack_app_mention(event)
+            elif sub_event_type == 'message':
+                user = event.get('user', None) or event.get('message', {}).get('user', None)
+                if not user or user == self.bot.user_id:
+                    return dict(text='ok')
+                self.on_slack_message(event)
+                return dict(text='ok')
+        
+        return dict(text='ok')
     
-    def on_slack_app_mention(self):
+    def on_slack_app_mention(self, message):
         pass
     
-    def on_slack_message(self):
+    def on_slack_message(self, message):
         pass
+
+    def init_flaskapp(self, flaskapp, url_prefix=''):
+        from slackapp.flaskext import init_flaskapp
+        url_prefix = url_prefix or '/slackapp/{}'.format(self.name)
+        init_flaskapp(self, flaskapp, url_prefix)
