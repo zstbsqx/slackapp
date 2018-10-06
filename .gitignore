@@ -2,6 +2,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
+examples/config.ini
+Pipfile
+Pipfile.lock
+.vscode/
 
 # C extensions
 *.so

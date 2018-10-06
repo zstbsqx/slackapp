@@ -1,5 +1,5 @@
 
-from slackapp.message import MessageText, MessageAttachment
+from slackapp.message import MessageText, MessageAttachment, MessageButton
 import json
 
 
@@ -20,6 +20,10 @@ class MessageView(object):
     
     def on_init(self):
         pass
+    
+    def reset(self):
+        self._text = None
+        self._attachments = []
 
     def text(self, text=''):
         self._text = MessageText(text=text)
@@ -29,6 +33,13 @@ class MessageView(object):
         attachment = MessageAttachment('{}____{}'.format(self.__callback_prefix__, name))
         self._attachments.append(attachment)
         return attachment
+    
+    def get_action(self, name, atype):
+        for attachment in self._attachments:
+            action = attachment.get_action(name, atype)
+            if action:
+                return action
+        return None
 
     def render(self):
         r = {}
@@ -55,10 +66,33 @@ class MessageView(object):
     def handle_action(self, action):
         action_type = action['type']
         action_name = action['name']
+        action_obj = self.get_action(action_name, action_type)
+        if action_obj:
+            return self.on_action(action_obj, action.get('value', ''))
+        else:
+            return self.response('Oops.')
 
 
-    def handle_event(self, event):
-        pass
+    def on_action(self, action, action_value):
+        if isinstance(action, MessageButton):
+            handler_name = 'on_{}_clicked'.format(action.name)
+            handler = getattr(self, handler_name, None)
+            if callable(handler):
+                ret = handler() or self
+                return self.response(ret)
+        
+        return self.response('No handler or not response.')
+            
 
     def to_json(self):
         return json.dumps(self.render())
+    
+    def response(self, ret):
+        if isinstance(ret, MessageView):
+            return ret.render() or {}
+        elif isinstance(ret, dict):
+            return ret
+        elif isinstance(ret, str):
+            return MessageText(ret).response()
+        else:
+            return ret or {}

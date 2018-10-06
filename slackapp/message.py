@@ -1,5 +1,3 @@
-
-from slackapp.event import EventHandler
 from collections import namedtuple
 
 def to_utf8(s, enc='utf8'):
@@ -17,8 +15,7 @@ SlackUser = namedtuple('SlackUser', ['id', 'name'])
 
 
 class MessageContext(object):
-    def __init__(self, name):
-        self.name = name
+    def __init__(self):
         self.bot = None
         self.client = None
         self.team = None
@@ -105,6 +102,11 @@ class MessageText(object):
     def render(self):
         text = ''.join(self._texts)
         return text
+    
+    def response(self):
+        return dict(
+            text = self.render()
+        )
 
 
 
@@ -139,6 +141,12 @@ class MessageAttachment(object):
     @property
     def actions(self):
         return self._actions
+
+    def get_action(self, name, atype):
+        for action in self._actions:
+            if action.name == name and action.type == atype:
+                return action
+        return None
 
     def button(self, name, text):
         btn = MessageButton(name, text)
@@ -183,7 +191,6 @@ class MessageButton(object):
         self._style = 'default'
         self._value = ''
         self._confirm = {}
-        self._click_handler = EventHandler(self)
 
     
     def style(self, style):
@@ -191,9 +198,6 @@ class MessageButton(object):
 
     def value(self, value):
         self._value = value
-
-    def on_click(self, click_handler):
-        self._click_handler.add(click_handler)
 
     def confirm(self, title, text, ok_text='', dismiss_text=''):
         confirm_dict = dict(title=title, text=text)
@@ -205,8 +209,10 @@ class MessageButton(object):
 
     @classmethod
     def load(cls, data):
-        o = cls()
-        for key in ('name', 'text', 'type'):
+        name = data.get('name', '')
+        text = data.get('text', '')
+        o = cls(name, text)
+        for key in ('type',):
             if key in data:
                 setattr(o, key, data[key])
         for key in ('style', 'value', 'confirm'):
