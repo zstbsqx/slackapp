@@ -1,17 +1,22 @@
 from collections import namedtuple
 
+from slackapp.component.attachment import MessageAttachment
+
+
+SlackTeam = namedtuple('SlackTeam', ['id', 'domain'])
+SlackChannel = namedtuple('SlackChannel', ['id', 'name'])
+SlackUser = namedtuple('SlackUser', ['id', 'name'])
+
+
 def to_utf8(s, enc='utf8'):
     if s is None:
         return None
     return s.encode(enc) if isinstance(s, unicode) else str(s)
 
+
 def slack_escape(text):
     #text = to_utf8(text)
     return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-
-SlackTeam = namedtuple('SlackTeam', ['id', 'domain'])
-SlackChannel = namedtuple('SlackChannel', ['id', 'name'])
-SlackUser = namedtuple('SlackUser', ['id', 'name'])
 
 
 class MessageContext(object):
@@ -90,7 +95,6 @@ class MessageText(object):
         escaped = slack_escape(text)        
         self._texts.append('~{}~'.format(escaped))
 
-
     def newline(self):
         self._texts.append('\n')
 
@@ -109,139 +113,37 @@ class MessageText(object):
         )
 
 
+class Message(object):
 
-class MessageAttachment(object):
-    def __init__(self, callback_id):
-        self._dict = {}
-        self._actions = []
-        self.callback_id = callback_id
-
-    def fallback(self, text):
-        pass
-    
-    def title(self, title):
-        self._dict['title'] = slack_escape(title)
-    
-    def title_link(self, title_link):
-        self._dict['title_link'] = title_link
-
-    def text(self, text):
-        self._dict['text'] = slack_escape(text)
-    
-    def color(self, color):
-        self._dict['color'] = color
-    
-    def image_url(self, image_url):
-        self._dict['image_url'] = image_url
-    
-    def fields(self, title, value, short=True):
-        fields_list = self._dict.setdefault('fields', [])
-        fields_list.append(dict(title=title, value=value, short=short))
-
-    @property
-    def actions(self):
-        return self._actions
-
-    def get_action(self, name, atype):
-        for action in self._actions:
-            if action.name == name and action.type == atype:
-                return action
-        return None
-
-    def button(self, name, text):
-        btn = MessageButton(name, text)
-        self._actions.append(btn)
-        return btn
-    
-    def menu(self):
-        act_menu = MessageMenu()
-        self._actions.append(act_menu)
-        return act_menu
-
-    @classmethod
-    def load(cls, data):
-        callback_id = data['callback_id']
-        o = cls(callback_id)
-        for key in ('title', 'title_link', 'text', 'color', 'image_ur', 'fields'):
-            if key in data:
-                o._dict[key] = data[key]
-        if 'actions' in data:
-            for action in data['actions']:
-                action_type = action['type']
-                if action_type == 'button':
-                    o._actions.append(MessageButton.load(action))
-                elif action_type == 'select':
-                    pass
-        return o
-
-
-    def render(self):
-        r = dict(self._dict)
-        if self._actions:
-            r['actions'] = list(map(lambda x: x.render(), self._actions))
-        r['callback_id'] = self.callback_id
-        return r
-
-
-class MessageButton(object):
-    def __init__(self, name, text):
-        self.name = name
+    def __init__(self, text=None, attachments=None, thread_ts=None, response_type='in_channel'):
         self.text = text
-        self.type = 'button'
-        self._style = 'default'
-        self._value = ''
-        self._confirm = {}
+        self.attachments = attachments
+        self.thread_ts = thread_ts
+        self.response_type = response_type
 
-    
-    def style(self, style):
-        self._style = style
+    def attachment(self):
+        attachment = MessageAttachment()
+        if self.attachments is None:
+            self.attachments = []
+        self.attachments.append(attachment)
+        return attachment
 
-    def value(self, value):
-        self._value = value
-
-    def confirm(self, title, text, ok_text='', dismiss_text=''):
-        confirm_dict = dict(title=title, text=text)
-        if ok_text:
-            confirm_dict['ok_text'] = ok_text
-        if dismiss_text:
-            confirm_dict['dismiss_text'] = dismiss_text
-        self._confirm = confirm_dict
+    def render(self):
+        result = {}
+        for key in ('text', 'thread_ts', 'response_type'):
+            value = getattr(self, key)
+            if value is not None:
+                result[key] = value
+        if self.attachments:
+            result['attachments'] = [att.render() for att in self.attachments]
+        return result
 
     @classmethod
     def load(cls, data):
-        name = data.get('name', '')
-        text = data.get('text', '')
-        o = cls(name, text)
-        for key in ('type',):
-            if key in data:
-                setattr(o, key, data[key])
-        for key in ('style', 'value', 'confirm'):
-            if key in data:
-                setattr(o, '_{}'.format(key), data[key])
-        return o
-
-        
-    def render(self):
-        rst = dict(name= self.name,
-            text = self.text,
-            type = self.type,
-            style = self._style
-        )
-        if self._value:
-            rst['value'] = self._value
-
-        if self._confirm:
-            rst['confirm'] = self._confirm
-        return rst
-
-
-class MessageMenu(object):
-    pass
-
-
-class MessageChannelMenu(MessageMenu):
-    pass
-
-
-class MessageUserMenu(MessageMenu):
-    pass
+        params = {}
+        for key in ('text', 'thread_ts', 'response_type'):
+            params[key] = data.get(key)
+        attachments = data.get('attachments')
+        if attachments:
+            params['attachments'] = [MessageAttachment.load(att) for att in attachments]
+        return cls(**params)
