@@ -138,7 +138,8 @@ class MessageAttachment(object):
 
     def render(self):
         result = {}
-        for key in ('fallback', 'color', 'pretext', 'image_url', 'thumb_url', 'ts', 'callback_id', 'attachment_type'):
+        for key in ('fallback', 'color', 'pretext', 'text', 'image_url', 'thumb_url', 'ts',
+                    'callback_id', 'attachment_type'):
             value = getattr(self, key)
             if value is not None:
                 result[key] = value

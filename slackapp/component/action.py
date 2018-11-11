@@ -1,4 +1,6 @@
 # -*- encoding: utf-8 -*-
+from six.moves import builtins
+
 from slackapp.object import SlackUser, SlackChannel, SlackConversation
 
 
@@ -27,7 +29,7 @@ class MessageAction(object):
         self.text = text
         self.type = type
         self.value = value
-        self.action_confirm = action_confirm if isinstance(action_confirm, (ActionConfirm, type(None)))\
+        self.action_confirm = action_confirm if isinstance(action_confirm, (ActionConfirm, builtins.type(None)))\
             else ActionConfirm(action_confirm)
 
     def confirm(self, text, title=None, ok_text=None, dismiss_text=None):
@@ -71,7 +73,8 @@ class MessageButton(MessageAction):
 
     @classmethod
     def load(cls, data):
-        print(data)
+        if data.pop('type') is not 'button':
+            raise TypeError('Invalid action type')
         obj = super(MessageButton, cls).load(data)
         obj.style = data.get('style')
         return obj
@@ -132,6 +135,8 @@ class MessageMenu(MessageAction):
 
     @classmethod
     def load(cls, data):
+        if data.pop('type') is not 'select':
+            raise TypeError('Invalid action type')
         obj = super(MessageMenu, cls).load(data)
         obj.data_source = data['data_source']
         return obj
@@ -175,6 +180,8 @@ class MessageStaticMenu(MessageMenu):
 
     @classmethod
     def load(cls, data):
+        if data['data_source'] not in ('default', 'static'):
+            raise TypeError('Invalid data source')
         obj = super(MessageStaticMenu, cls).load(data)
         options = data.get('options')
         if options:
@@ -200,6 +207,8 @@ class MessageUserMenu(MessageMenu):
 
     @classmethod
     def load(cls, data):
+        if data['data_source'] is not 'users':
+            raise TypeError('Invalid data source')
         obj = super(MessageUserMenu, cls).load(data)
         selected_options = data.get('selected_options')
         if selected_options:
@@ -221,6 +230,8 @@ class MessageChannelMenu(MessageMenu):
 
     @classmethod
     def load(cls, data):
+        if data['data_source'] is not 'channels':
+            raise TypeError('Invalid data source')
         obj = super(MessageChannelMenu, cls).load(data)
         selected_options = data.get('selected_options')
         if selected_options:
@@ -242,6 +253,8 @@ class MessageConversationMenu(MessageMenu):
 
     @classmethod
     def load(cls, data):
+        if data['data_source'] is not 'conversations':
+            raise TypeError('Invalid data source')
         obj = super(MessageConversationMenu, cls).load(data)
         selected_options = data.get('selected_options')
         if selected_options:
@@ -259,10 +272,21 @@ class MessageExternalMenu(MessageMenu):
 
 
 def parse_action(data):
-    action_type = data.pop('type')
+    action_type = data['type']
     if action_type is 'button':
         return MessageButton.load(data)
     elif action_type is 'select':
-        return MessageMenu.load(data)
+        data_source = data.get('data_source', 'default')
+        source_menu_mapping = {
+            'default': MessageStaticMenu,
+            'static': MessageStaticMenu,
+            'users': MessageUserMenu,
+            'channels': MessageChannelMenu,
+            'conversations': MessageConversationMenu,
+            'external': MessageExternalMenu
+        }
+        if data_source not in source_menu_mapping:
+            raise TypeError('Unknown data source')
+        return source_menu_mapping[data_source].load(data)
     else:
         raise TypeError('Unknown action type: "{}"'.format(action_type))

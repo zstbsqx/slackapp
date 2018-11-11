@@ -1,6 +1,4 @@
-
-from slackapp.view import MessageView
-from slackapp.message import MessageText
+from slackapp.message.message import MessageText
 
 def test_text_1():
     t = MessageText()
