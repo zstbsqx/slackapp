@@ -1,17 +1,4 @@
-
 from slackclient import SlackClient
-
-
-class SlackTeam(object):
-    pass
-
-
-class SlackUser(object):
-    pass
-
-
-class SlackConversation(object):
-    pass
 
 
 class SlackBot(object):
