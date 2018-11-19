@@ -34,7 +34,7 @@ class MessageAction(object):
 
     def confirm(self, text, title=None, ok_text=None, dismiss_text=None):
         self.action_confirm = ActionConfirm(text, title, ok_text, dismiss_text)
-        return self
+        return self.action_confirm
 
     def render(self):
         result = {}
@@ -108,6 +108,9 @@ class MenuOptionGroup(object):
     def add_option(self, text, value, description=None):
         self.options.append(MenuOption(text, value, description))
 
+    def __iter__(self):
+        return iter(self.options)
+
     def render(self):
         return {
             'text': self.text,
@@ -121,9 +124,13 @@ class MenuOptionGroup(object):
 
 class MessageMenu(MessageAction):
 
-    def __init__(self, name, text, value=None, action_confirm=None, data_source='default'):
+    def __init__(self, name, text, value=None, action_confirm=None, data_source='default', selected_option=None):
         super(MessageMenu, self).__init__(name, text, 'select', value, action_confirm)
         self.data_source = data_source
+        self.selected_option = selected_option
+
+    def set_selected(self, value):
+        self.selected_option = MenuOption(None, str(value))
 
     def render(self):
         result = super(MessageMenu, self).render()
@@ -131,6 +138,7 @@ class MessageMenu(MessageAction):
             value = getattr(self, key)
             if value is not None:
                 result[key] = value
+        result['selected_options'] = [self.selected_option.render()]
         return result
 
     @classmethod
@@ -145,28 +153,43 @@ class MessageMenu(MessageAction):
 class MessageStaticMenu(MessageMenu):
     def __init__(self, name, text, value=None, action_confirm=None, options=None, option_groups=None,
                  selected_option=None):
-        super(MessageStaticMenu, self).__init__(name, text, value, action_confirm, 'static')
+        super(MessageStaticMenu, self).__init__(name, text, value, action_confirm, 'static', selected_option)
         self.options = options
         self.option_groups = option_groups
-        self.selected_option = selected_option
+
+    def set_selected(self, value):
+        # find option by value
+        if self.option_groups:
+            for group in self.option_groups:
+                for option in group:
+                    if option.value == value:
+                        self.selected_option = option
+                        return
+        elif self.options:
+            for option in self.options:
+                if option.value == value:
+                    self.selected_option = option
+                    return
+        raise ValueError('Option with value "{}" not found'.format(value))
 
     def add_option(self, text, value, description=None):
+        option = MenuOption(text, value, description)
         if self.options is None:
             self.options = []
-        self.options.append(MenuOption(text, value, description))
-        return self
+        self.options.append(option)
+        return option
 
     def add_option_to_group(self, group_text, option_text, option_value, option_description=None):
-        option = MenuOption(option_text, option_value, option_description)
         if self.option_groups is None:
             self.option_groups = []
         target_groups = filter(lambda g: g.text == group_text, self.option_groups)
         if target_groups:
             target_group = target_groups[0]
-            target_group.add_option(option_text, option_value, option_description)
+            option = target_group.add_option(option_text, option_value, option_description)
         else:
+            option = MenuOption(option_text, option_value, option_description)
             self.option_groups.append(MenuOptionGroup(group_text, [option]))
-        return self
+        return option
 
     def render(self):
         result = super(MessageStaticMenu, self).render()
@@ -199,11 +222,14 @@ class MessageUserMenu(MessageMenu):
         super(MessageUserMenu, self).__init__(name, text, value, action_confirm, 'users')
         self.selected_user = selected_user
 
-    def render(self):
-        result = super(MessageUserMenu, self).render()
-        if self.selected_user is not None:
-            result['selected_options'] = [{'value': self.selected_user.id}]
-        return result
+    @property
+    def selected_user(self):
+        return SlackUser(self.selected_option['value']) if self.selected_option else None
+
+    @selected_user.setter
+    def selected_user(self, value):
+        if value is not None:
+            self.selected_option = MenuOption(None, value.id)
 
     @classmethod
     def load(cls, data):
@@ -222,11 +248,14 @@ class MessageChannelMenu(MessageMenu):
         super(MessageChannelMenu, self).__init__(name, text, value, action_confirm, 'channels')
         self.selected_channel = selected_channel
 
-    def render(self):
-        result = super(MessageChannelMenu, self).render()
-        if self.selected_channel is not None:
-            result['selected_options'] = [{'value': self.selected_channel.id}]
-        return result
+    @property
+    def selected_channel(self):
+        return SlackUser(self.selected_option['value']) if self.selected_option else None
+
+    @selected_channel.setter
+    def selected_channel(self, value):
+        if value is not None:
+            self.selected_option = MenuOption(None, value.id)
 
     @classmethod
     def load(cls, data):
@@ -245,11 +274,14 @@ class MessageConversationMenu(MessageMenu):
         super(MessageConversationMenu, self).__init__(name, text, value, action_confirm, 'conversations')
         self.selected_conversation = selected_conversation
 
-    def render(self):
-        result = super(MessageConversationMenu, self).render()
-        if self.selected_conversation is not None:
-            result['selected_options'] = [{'value': self.selected_conversation.id}]
-        return result
+    @property
+    def selected_conversation(self):
+        return SlackUser(self.selected_option['value']) if self.selected_option else None
+
+    @selected_conversation.setter
+    def selected_conversation(self, value):
+        if value is not None:
+            self.selected_option = MenuOption(None, value.id)
 
     @classmethod
     def load(cls, data):

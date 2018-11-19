@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 from slackapp.component.field import MessageField
-from slackapp.component.action import MessageButton, MessageStaticMenu, MessageUserMenu, MessageChannelMenu,\
-    MessageConversationMenu, parse_action
+from slackapp.component.action import MessageButton, MessageMenu, MessageStaticMenu, MessageUserMenu,\
+    MessageChannelMenu, MessageConversationMenu, MenuOption, parse_action
 
 
 class MessageAuthor(object):
@@ -47,6 +47,32 @@ class MessageFooter(object):
         return result
 
 
+class SelectValueProxy(object):
+    def __init__(self, attachment):
+        self.attachment = attachment
+
+    def _find_menu(self, name):
+        if not self.attachment.actions:
+            return None
+        for action in self.attachment.actions:
+            if action.name == name and isinstance(action, MessageMenu):
+                return action
+        else:
+            return None
+
+    def __setitem__(self, key, value):
+        menu = self._find_menu(key)
+        if menu is None:
+            raise KeyError('Menu with name {} not found'.format(key))
+        menu.set_selected(value)
+
+    def __getitem__(self, item):
+        menu = self._find_menu(item)
+        if menu is None:
+            raise KeyError('Menu with name {} not found'.format(item))
+        return menu.selected_option.value if menu.selected_option else None
+
+
 class MessageAttachment(object):
 
     def __init__(self, fallback='Upgrade your Slack', color=None, pretext=None, msg_author=None, msg_title=None,
@@ -69,22 +95,22 @@ class MessageAttachment(object):
 
     def author(self, author, author_link=None, author_icon=None):
         self.msg_author = MessageAuthor(author, author_link, author_icon)
-        return self
+        return self.msg_author
 
     def title(self, title, title_link=None):
         self.msg_title = MessageTitle(title, title_link)
-        return self
+        return self.msg_title
 
     def footer(self, footer, footer_icon=None):
         self.msg_footer = MessageFooter(footer, footer_icon)
-        return self
+        return self.msg_footer
 
     def field(self, title, value, short=False):
         field = MessageField(title, value, short)
         if self.fields is None:
             self.fields = []
         self.fields.append(field)
-        return self
+        return field
 
     def _add_action(self, action):
         if self.actions is None:
@@ -94,28 +120,32 @@ class MessageAttachment(object):
     def button(self, name, text, value=None, action_confirm=None, style=None):
         button = MessageButton(name, text, value, action_confirm, style)
         self._add_action(button)
-        return self
+        return button
 
     def static_menu(self, name, text, value=None, action_confirm=None, options=None, option_groups=None,
                     selected_option=None):
         menu = MessageStaticMenu(name, text, value, action_confirm, options, option_groups, selected_option)
         self._add_action(menu)
-        return self
+        return menu
 
     def user_menu(self, name, text, value=None, action_confirm=None, selected_user=None):
         menu = MessageUserMenu(name, text, value, action_confirm, selected_user)
         self._add_action(menu)
-        return self
+        return menu
 
     def channel_menu(self, name, text, value=None, action_confirm=None, selected_channel=None):
         menu = MessageChannelMenu(name, text, value, action_confirm, selected_channel)
         self._add_action(menu)
-        return self
+        return menu
 
     def conversation_menu(self, name, text, value=None, action_confirm=None, selected_conversation=None):
         menu = MessageConversationMenu(name, text, value, action_confirm, selected_conversation)
         self._add_action(menu)
-        return self
+        return menu
+
+    @property
+    def select_values(self):
+        return SelectValueProxy(self)
 
     @classmethod
     def load(cls, data):

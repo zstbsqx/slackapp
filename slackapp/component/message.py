@@ -40,6 +40,7 @@ class MessageContext(object):
         o.user = SlackUser(id=user['id'], name=user['name'])
         return o
 
+
 class MessageText(object):
     def __init__(self, text=''):
         self._texts = []
@@ -141,7 +142,7 @@ class Message(object):
     @classmethod
     def load(cls, data):
         params = {}
-        for key in ('text', 'thread_ts', 'response_type'):
+        for key in ('text', 'thread_ts', 'response_type'):  # maybe there are some other strange
             params[key] = data.get(key)
         attachments = data.get('attachments')
         if attachments:
