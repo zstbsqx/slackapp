@@ -1,95 +1,72 @@
+from slackapp.logging import logger
+from slackapp.component.message import Message
 
-from slackapp.message import MessageText, MessageAttachment, MessageButton
-import json
+
+class ActionHandler(object):
+
+    def __init__(self, callback_id, action_name, callback):
+        self.callback_id = callback_id
+        self.action_name = action_name
+        self.callback = callback
+
+    @classmethod
+    def register(cls, callback_id, action_name):
+        def make_handler(f):
+            if not callable(f):
+                raise TypeError('ActionHandler must be a callable')
+            return cls(callback_id, action_name, f)
+        return make_handler
+
+    def __call__(self, msg, context):
+        return self.callback(msg, context)
+
+
+on_action = ActionHandler.register
+
+
+class classproperty(object):
+
+    def __init__(self, method):
+        self.method = method
+
+    def __get__(self, obj, cls):
+        return self.method(cls)
 
 
 class MessageView(object):
-    __callback_prefix__ = ''
 
-    def __init__(self):
-        self._text = None
-        self._attachments =  []
-        self.context = None
-        self.app = None
+    @classproperty
+    def action_handlers(cls):
+        if getattr(cls, '_action_handlers', None) is None:
+            cls._action_handlers = cls._build_action_handler_mapping()
+        return cls._action_handlers
 
-    def init(self):
-        self.on_init(self)
-    
-    def on_init(self):
-        pass
-    
-    def reset(self):
-        self._text = None
-        self._attachments = []
-
-    def text(self, text=''):
-        self._text = MessageText(text=text)
-        return self._text
-
-    def attachement(self, name):
-        attachment = MessageAttachment('{}____{}'.format(self.__callback_prefix__, name))
-        self._attachments.append(attachment)
-        return attachment
-    
-    def get_action(self, name, atype):
-        for attachment in self._attachments:
-            action = attachment.get_action(name, atype)
-            if action:
-                return action
-        return None
-
-    def render(self):
-        r = {}
-        if self._text:
-            r['text'] = self._text.render()
-        if self._attachments:
-            r['attachments'] = list(map(lambda x:x.render(), self._attachments))
-        return r
-    
     @classmethod
-    def load(cls, context, data):
-        o = cls()
-        o.context = context
-        if 'text' in data:
-            _text = MessageText.load(data['text'])
-            o._text = _text
-        
-        if 'attachments' in data:
-            _attachments = list(map(lambda x: MessageAttachment.load(x), data['attachments']))
-            o._attachments = _attachments
-        
-        return o
+    def _build_action_handler_mapping(cls):
+        result = {}
+        for k, v in cls.__dict__.items():
+            if isinstance(v, ActionHandler):
+                logger.debug('Adding handler for callback_id "{}" action "{}"'.format(v.callback_id, v.action_name))
+                if (v.callback_id, v.action_name) in result:
+                    raise KeyError('Duplicate entry for action {}'.format(v.action_name))
+                result[(v.callback_id, v.action_name)] = v
+        return result
 
-    def handle_action(self, action):
-        action_type = action['type']
-        action_name = action['name']
-        action_obj = self.get_action(action_name, action_type)
-        if action_obj:
-            return self.on_action(action_obj, action.get('value', ''))
-        else:
-            return self.response('Oops.')
+    def __init__(self, msg=None, context=None):
+        self.msg = msg or self.init_msg
+        self.context = context
 
+    def handle_action(self, callback_id, action_name, action_value):
+        handler = self.action_handlers.get((callback_id, action_name))
+        if callable(handler):
+            return handler(self, action_value)
 
-    def on_action(self, action, action_value):
-        if isinstance(action, MessageButton):
-            handler_name = 'on_{}_clicked'.format(action.name)
-            handler = getattr(self, handler_name, None)
-            if callable(handler):
-                ret = handler() or self
-                return self.response(ret)
-        
-        return self.response('No handler or not response.')
-            
+    @property
+    def init_msg(self):
+        return Message()
 
-    def to_json(self):
-        return json.dumps(self.render())
-    
-    def response(self, ret):
-        if isinstance(ret, MessageView):
-            return ret.render() or {}
-        elif isinstance(ret, dict):
-            return ret
-        elif isinstance(ret, str):
-            return MessageText(ret).response()
-        else:
-            return ret or {}
+    def reset(self):
+        self.msg = self.init_msg
+
+    def clear(self):
+        self.msg = Message()

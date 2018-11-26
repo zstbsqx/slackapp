@@ -22,6 +22,9 @@ setup(
     license="MIT",
     keywords=("slack", "egg"),
     platforms="any",
-    install_requires=['slackclient'],
+    install_requires=['slackclient', 'six'],
+    extras_require={
+        'flask': 'flask'
+    },
     entry_points={}
 )

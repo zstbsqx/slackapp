@@ -73,7 +73,7 @@ class MessageButton(MessageAction):
 
     @classmethod
     def load(cls, data):
-        if data.pop('type') is not 'button':
+        if data.pop('type') != 'button':
             raise TypeError('Invalid action type')
         obj = super(MessageButton, cls).load(data)
         obj.style = data.get('style')
@@ -138,12 +138,13 @@ class MessageMenu(MessageAction):
             value = getattr(self, key)
             if value is not None:
                 result[key] = value
-        result['selected_options'] = [self.selected_option.render()]
+        if self.selected_option:
+            result['selected_options'] = [self.selected_option.render()]
         return result
 
     @classmethod
     def load(cls, data):
-        if data.pop('type') is not 'select':
+        if data.pop('type') != 'select':
             raise TypeError('Invalid action type')
         obj = super(MessageMenu, cls).load(data)
         obj.data_source = data['data_source']
@@ -233,7 +234,7 @@ class MessageUserMenu(MessageMenu):
 
     @classmethod
     def load(cls, data):
-        if data['data_source'] is not 'users':
+        if data['data_source'] != 'users':
             raise TypeError('Invalid data source')
         obj = super(MessageUserMenu, cls).load(data)
         selected_options = data.get('selected_options')
@@ -259,7 +260,7 @@ class MessageChannelMenu(MessageMenu):
 
     @classmethod
     def load(cls, data):
-        if data['data_source'] is not 'channels':
+        if data['data_source'] != 'channels':
             raise TypeError('Invalid data source')
         obj = super(MessageChannelMenu, cls).load(data)
         selected_options = data.get('selected_options')
@@ -285,7 +286,7 @@ class MessageConversationMenu(MessageMenu):
 
     @classmethod
     def load(cls, data):
-        if data['data_source'] is not 'conversations':
+        if data['data_source'] != 'conversations':
             raise TypeError('Invalid data source')
         obj = super(MessageConversationMenu, cls).load(data)
         selected_options = data.get('selected_options')
@@ -305,9 +306,9 @@ class MessageExternalMenu(MessageMenu):
 
 def parse_action(data):
     action_type = data['type']
-    if action_type is 'button':
+    if action_type == 'button':
         return MessageButton.load(data)
-    elif action_type is 'select':
+    elif action_type == 'select':
         data_source = data.get('data_source', 'default')
         source_menu_mapping = {
             'default': MessageStaticMenu,
