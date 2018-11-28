@@ -20,7 +20,7 @@ class SlackBot(object):
         ret = self.client.api_call(
             'chat.postMessage',
             channel=channel_or_user,
-            # as_user=True,
+            as_user=True,
             **message
         )
         return ret['ok']

@@ -70,3 +70,6 @@ class MessageView(object):
 
     def clear(self):
         self.msg = Message()
+
+    def delete(self):
+        self.msg = None

@@ -79,7 +79,12 @@ class SlackApp(object):
             else:
                 value = action['selected_options'][0]['value']
             view_instance.handle_action(callback_id, name, value)
-        return view_instance.msg.render()
+        if view_instance.msg:
+            return view_instance.msg.render()
+        else:
+            return {
+                'delete_original': True
+            }
 
     def handle_command_request(self, data):
         pass
